@@ -104,6 +104,7 @@ class QAgent:
             # apply epsilon decay
             if decay_interval is not None and i % decay_interval == 0 and self.epsilon > 0:
                 self.epsilon -= decay_interval / (epochs/2)
+                self.epsilon = 0 if (self.epsilon < 0) else self.epsilon  # set epsilon to 0 once decay is completed
 
             # data for this epoch
             actions = {
@@ -154,11 +155,11 @@ if __name__ == '__main__':
     env = gym.make('MountainCar-v0')
     agent = QAgent(env, [20, 20])
 
-    # ------------------------------- Training ----------------------------------
-    agent.train(10000, decay_interval=100)
-    agent.save_table('mountaincar.npy')
+    # # ------------------------------- Training ----------------------------------
+    # agent.train(20000)
+    # agent.save_table('mountaincar.npy')
 
     # ------------------------------- Playing ------------------------------------
-    agent.load_table('mountaincar.npy')
+    agent.load_table('DQN/SavedStates/mountaincar.npy')
     agent.play_game()
 
