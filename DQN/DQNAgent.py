@@ -15,7 +15,7 @@ class ModifiedTensorBoard(TensorBoard):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.step = 1
-        self.writer = tf.summary.FileWriter(self.log_dir)
+        self.writer = tf.summary.create_file_writer(self.log_dir)
 
     # Overriding this method to stop creating default log writer
     def set_model(self, model):
@@ -58,7 +58,7 @@ class DQNAgent:
         self.target_update_counter = 0  # counts number of training steps taken used to update the target model
 
         # our tensorboard for writing to one log for every time we call model.fit()
-        #self.tensorboard = ModifiedTensorBoard(log_dir=f'logs/{self.model_name}-{int(time.time())}')
+        self.tensorboard = ModifiedTensorBoard(log_dir=f'logs/{self.model_name}-{int(time.time())}')
 
     # Creates a CNN with two CONV2D layers with ReLU, Pooling, and Dropout.
     # Data is finally passed through 2 Dense layers which outputs a softmax activated output of action probabilities
@@ -83,6 +83,11 @@ class DQNAgent:
 
         return model
 
+    # Adds step's data to a memory replay array
+    # (observation space, action, reward, new observation space, done)
+    def update_replay_memory(self, transition):
+        self.replay_memory.append(transition)
+
     def get_action_meanings(self):
         meaning = ""
         for i in range(self.env.action_space.n):
@@ -100,12 +105,11 @@ class DQNAgent:
             self.env.render()
             if done:
                 break
+            time.sleep(0.0166)
         self.env.close()
 
 if __name__ == '__main__':
     env = retro.make(game='Airstriker-Genesis')
-    print(env.observation_space)
-    print(env.action_space)
 
-    # agent = DQNAgent(env)
-    # agent.random_run()
+    agent = DQNAgent(env)
+    agent.random_run()
