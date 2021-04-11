@@ -1,46 +1,11 @@
 import retro
-import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, Activation, Dropout, Flatten, Dense
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import TensorBoard
 from collections import namedtuple, deque
 import numpy as np
 import random
 import time
-
-
-# Custom tensorboard class for log writing so we dont have 10 million logs haha
-class ModifiedTensorBoard(TensorBoard):
-
-    # Overriding init to set initial step and writer (we want one log file for all .fit() calls)
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.step = 1
-        self.writer = tf.summary.create_file_writer(self.log_dir)
-
-    # Overriding this method to stop creating default log writer
-    def set_model(self, model):
-        pass
-
-    # Overrided, saves logs with our step number
-    # (otherwise every .fit() will start writing from 0th step)
-    def on_epoch_end(self, epoch, logs=None):
-        self.update_stats(**logs)
-
-    # Overrided
-    # We train for one batch only, no need to save anything at epoch end
-    def on_batch_end(self, batch, logs=None):
-        pass
-
-    # Overrided, so won't close writer
-    def on_train_end(self, _):
-        pass
-
-    # Custom method for saving own metrics
-    # Creates writer, writes custom metrics and closes writer
-    def update_stats(self, **stats):
-        self._write_logs(stats, self.step)
 
 # the Replay Memory for training the target network
 class ReplayBuffer:
@@ -70,6 +35,12 @@ class ReplayBuffer:
 class DQNAgent:
     # initialize the DQN agent which trains a convolution model given pixel data of the game
     def __init__(self, environment, buffer_size=50000, batch_size=128, replay_every=32):
+        # hyper parameters
+        self.gamma = 0.95
+        self.epsilon = 1.0
+        self.epsilon_decay = 0.995
+        self.learning_rate = 0.01
+
         self.env = environment  # game environment
         self.model = self.create_model()  # the DQN network
         self.model_name = "DQN: " + self.env.gamename + "\nSize: " + str(self.env.observation_space.shape)
@@ -84,16 +55,6 @@ class DQNAgent:
         self.replay_every = replay_every # number of training iterations taken before the target model is updated
         self.time_step = 0
 
-        # our TensorBoard for writing to one log for every time we call model.fit()
-        self.tensorboard = ModifiedTensorBoard(log_dir=f'logs/{self.model_name}-{int(time.time())}')
-
-        # hyper parameters
-        self.gamma = 0.95
-        self.epsilon = 1.0
-        self.epsilon_min = 0.01
-        self.epsilon_decay = 0.995
-        self.learning_rate = 0.01
-
     def step(self, state, action, reward, next_state, done):
         # Save the experience in replay memory
         self.memory.add(state, action, reward, next_state, done)
@@ -106,9 +67,10 @@ class DQNAgent:
 
     def act(self, state):
         if random.uniform(0, 1) < self.epsilon:
+            pass
 
     def train(self, experiences):
-
+        pass
 
     # Creates a CNN with two CONV2D layers with ReLU, Pooling, and Dropout.
     # Data is finally passed through 2 Dense layers which outputs a sigmoid activated output of action probabilities
@@ -133,7 +95,6 @@ class DQNAgent:
 
         return model
 
-
     def get_action_meanings(self):
         meaning = ""
         for i in range(self.env.action_space.n):
@@ -145,7 +106,7 @@ class DQNAgent:
         return meaning
 
 
-def random_run(self, env):
+def random_run(env):
     env.reset()
     while True:
         obs, rew, done, info = env.step(env.action_space.sample())
@@ -160,7 +121,7 @@ def random_run(self, env):
     env.close()
 
 if __name__ == '__main__':
-    # env = retro.make(game='Airstriker-Genesis')
-    #
-    # agent = DQNAgent(env)
-    # agent.random_run()
+    env = retro.make(game='Airstriker-Genesis')
+
+    agent = DQNAgent(env)
+    random_run(env)
