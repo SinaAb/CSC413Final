@@ -1,6 +1,6 @@
 import retro
 from tensorflow import keras
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Activation, Dropout, Flatten, Dense
+from tensorflow.keras.layers import *
 from tensorflow.keras.optimizers import Adam
 from collections import namedtuple, deque
 import numpy as np
@@ -52,7 +52,7 @@ class DQNAgent:
 
         # replay memory initialization
         self.memory = ReplayBuffer(buffer_size, batch_size)
-        self.replay_every = replay_every # number of training iterations taken before the target model is updated
+        self.replay_every = replay_every  # number of training iterations taken before the target model is updated
         self.time_step = 0
 
     def step(self, state, action, reward, next_state, done):
@@ -75,22 +75,37 @@ class DQNAgent:
     # Creates a CNN with two CONV2D layers with ReLU, Pooling, and Dropout.
     # Data is finally passed through 2 Dense layers which outputs a sigmoid activated output of action probabilities
     def create_model(self):
-        model = keras.Sequential()
+        # model = keras.Sequential()
+        #
+        # model.add(Conv2D(256, (3, 3), input_shape=self.env.observation_space.shape))
+        # model.add(Activation('relu'))
+        # model.add(MaxPooling2D(pool_size=(2, 2)))
+        # model.add(Dropout(0.2))
+        #
+        # model.add(Conv2D(256, (3, 3)))
+        # model.add(Activation('relu'))
+        # model.add(MaxPooling2D(pool_size=(2, 2)))
+        # model.add(Dropout(0.2))
+        #
+        # model.add(Flatten())  # this converts our 3D feature maps to 1D feature vectors
+        # model.add(Dense(64))
+        #
+        # model.add(Dense(self.env.action_space.n, activation='sigmoid'))
+        # model.compile(loss="mse", optimizer=Adam(lr=self.learning_rate), metrics=['accuracy'])
+        # Network defined by the Deepmind paper
+        inputs = Input(shape=(224, 320, 3))
 
-        model.add(Conv2D(256, (3, 3), input_shape=self.env.observation_space.shape))
-        model.add(Activation('relu'))
-        model.add(MaxPooling2D(pool_size=(2, 2)))
-        model.add(Dropout(0.2))
+        # Convolutions on the frames on the screen
+        layer1 = Conv2D(32, 8, strides=4, activation="relu")(inputs)
+        layer2 = Conv2D(64, 4, strides=2, activation="relu")(layer1)
+        layer3 = Conv2D(64, 3, strides=1, activation="relu")(layer2)
 
-        model.add(Conv2D(256, (3, 3)))
-        model.add(Activation('relu'))
-        model.add(MaxPooling2D(pool_size=(2, 2)))
-        model.add(Dropout(0.2))
+        layer4 = Flatten()(layer3)
 
-        model.add(Flatten())  # this converts our 3D feature maps to 1D feature vectors
-        model.add(Dense(64))
+        layer5 = Dense(512, activation="relu")(layer4)
+        action = Dense(12, activation="sigmoid")(layer5)
 
-        model.add(Dense(self.env.action_space.n, activation='sigmoid'))
+        model = keras.Model(inputs=inputs, outputs=action)
         model.compile(loss="mse", optimizer=Adam(lr=self.learning_rate), metrics=['accuracy'])
 
         return model
@@ -124,4 +139,4 @@ if __name__ == '__main__':
     env = retro.make(game='Airstriker-Genesis')
 
     agent = DQNAgent(env)
-    random_run(env)
+    print(agent.model_name)
