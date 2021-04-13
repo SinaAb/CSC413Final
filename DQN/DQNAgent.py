@@ -4,8 +4,8 @@ from tensorflow.keras.layers import *
 from tensorflow.keras.optimizers import Adam
 from collections import namedtuple, deque
 import numpy as np
+import tensorflow as tf
 import random
-import time
 
 # the Replay Memory for training the target network
 class ReplayBuffer:
@@ -53,24 +53,36 @@ class DQNAgent:
         # replay memory initialization
         self.memory = ReplayBuffer(buffer_size, batch_size)
         self.replay_every = replay_every  # number of training iterations taken before the target model is updated
-        self.time_step = 0
+        self.time_step = 0  # tracks how many steps are taken
 
     def step(self, state, action, reward, next_state, done):
         # Save the experience in replay memory
         self.memory.add(state, action, reward, next_state, done)
 
-        # update the target model once we reach replay_every time steps taken
+        # update the time_step tracker up to the replay limit
         self.time_step = (self.time_step + 1) % self.replay_every
+
+        # update the target model once we reach replay_every time steps taken
         if self.time_step == 0 and len(self.memory) > self.memory.batch_size:
             experiences = self.memory.sample()
-            self.learn(experiences)
+            self.replay(experiences)
 
     def act(self, state):
         if random.uniform(0, 1) < self.epsilon:
             pass
 
-    def train(self, experiences):
-        pass
+    def replay(self, experiences):
+        for sample in experiences:
+            state, action, reward, next_state, done = sample
+
+            batched_state = np.array([list(state)])  # convert it into batch form (1, ... original shape ...)
+            qs = self.target_model.predict(batched_state)[0]  # get the q values
+
+            # set the q values for the actions taken to the reward otherwise keep them the same
+            if done:
+                for i in range(len(qs)):
+                    qs[i] = reward if action[i] else qs[i]
+            #
 
     # Creates a CNN with two CONV2D layers with ReLU, Pooling, and Dropout.
     # Data is finally passed through 2 Dense layers which outputs a sigmoid activated output of action probabilities
@@ -92,18 +104,17 @@ class DQNAgent:
         #
         # model.add(Dense(self.env.action_space.n, activation='sigmoid'))
         # model.compile(loss="mse", optimizer=Adam(lr=self.learning_rate), metrics=['accuracy'])
-        # Network defined by the Deepmind paper
-        inputs = Input(shape=(224, 320, 3))
+
+        # Gym Retro customized Convolution DQN model from DeepMind (big thanks to the authors :D)
+        inputs = Input(shape=self.env.observation_space.shape)
 
         # Convolutions on the frames on the screen
         layer1 = Conv2D(32, 8, strides=4, activation="relu")(inputs)
         layer2 = Conv2D(64, 4, strides=2, activation="relu")(layer1)
         layer3 = Conv2D(64, 3, strides=1, activation="relu")(layer2)
-
         layer4 = Flatten()(layer3)
-
         layer5 = Dense(512, activation="relu")(layer4)
-        action = Dense(12, activation="sigmoid")(layer5)
+        action = Dense(self.env.action_space.n)(layer5)
 
         model = keras.Model(inputs=inputs, outputs=action)
         model.compile(loss="mse", optimizer=Adam(lr=self.learning_rate), metrics=['accuracy'])
@@ -120,23 +131,30 @@ class DQNAgent:
 
         return meaning
 
+    def print_model(self):
+        self.model.summary()
 
-def random_run(env):
-    env.reset()
-    while True:
-        obs, rew, done, info = env.step(env.action_space.sample())
-        env.render()
-        if done:
-            break
+    def random_run(self):
+        env = self.env
+        env.reset()
+        while True:
+            action = env.action_space.sample()
+            new_state, rew, done, info = env.step(action)
+            env.render()
+            if done:
+                break
 
-        if rew > 0:
-            print("Reward:", rew)
+            if rew > 0:
+                print("Reward:", rew)
+                qs = self.target_model.predict(np.array([list(new_state)]))
+                print(tf.sigmoid(qs))
+                print(action)
 
-        time.sleep(0.0166)
-    env.close()
+        env.close()
+
 
 if __name__ == '__main__':
     env = retro.make(game='Airstriker-Genesis')
 
     agent = DQNAgent(env)
-    print(agent.model_name)
+    agent.random_run()
