@@ -6,6 +6,8 @@ from collections import namedtuple, deque
 import numpy as np
 import tensorflow as tf
 import random
+import time
+
 
 # the Replay Memory for training the target network
 class ReplayBuffer:
@@ -32,12 +34,14 @@ class ReplayBuffer:
     def __len__(self):
         return len(self.memory)
 
+
 class DQNAgent:
     # initialize the DQN agent which trains a convolution model given pixel data of the game
     def __init__(self, environment, buffer_size=50000, batch_size=128, replay_every=32):
         # hyper parameters
         self.gamma = 0.95
         self.epsilon = 1.0
+        self.epsilon_min = 0.01
         self.epsilon_decay = 0.995
         self.learning_rate = 0.01
 
@@ -67,22 +71,52 @@ class DQNAgent:
             experiences = self.memory.sample()
             self.replay(experiences)
 
+    # make an action choice
     def act(self, state):
+        self.epsilon *= self.epsilon_decay
+        self.epsilon = max(self.epsilon, self.epsilon_min)
+
         if random.uniform(0, 1) < self.epsilon:
-            pass
+            return self.env.action_space.sample()
+        else:
+            batched_state = np.array([list(state)])
+            qs = self.model.predict(batched_state)[0]
+            mean = np.mean(qs)
+            best_action = np.array([int(q > mean) for q in qs])
+            return best_action
 
     def replay(self, experiences):
         for sample in experiences:
             state, action, reward, next_state, done = sample
 
+            batched_next_state = np.array([list(next_state)]) # refer to below
             batched_state = np.array([list(state)])  # convert it into batch form (1, ... original shape ...)
-            qs = self.target_model.predict(batched_state)[0]  # get the q values
+            target_qs = self.target_model.predict(batched_state)[0]  # get the q values
 
             # set the q values for the actions taken to the reward otherwise keep them the same
             if done:
-                for i in range(len(qs)):
-                    qs[i] = reward if action[i] else qs[i]
-            #
+                for i in range(len(target_qs)):
+                    target_qs[i] = reward if action[i] else target_qs[i]
+
+            # update the the qs with all the q values greater than the mean of the next_state
+            # this heuristic is a key to solving this DQN for this action space, and will be updated regularly
+            # traditionally we take the max best action for the next state and fit the model to it
+            else:
+                mean_qs = np.mean(target_qs)
+                next_qs = self.target_model.predict(batched_next_state)[0]
+
+                for i in range(len(target_qs)):
+                    # instead of taking the max action on the next state take all actions that are above average for now
+                    if target_qs[i] > mean_qs:
+                        target_qs[i] = reward + next_qs[i] * self.gamma
+
+            # fit the model on the target q values
+            batched_target = np.array([list(target_qs)])
+            self.model.fit(state, batched_target, epochs=1, verbose=0)
+
+    # copies the training models weights to the target model
+    def update_target_model(self):
+        self.target_model.set_weights(self.model.get_weights())  # copy the true model
 
     # Creates a CNN with two CONV2D layers with ReLU, Pooling, and Dropout.
     # Data is finally passed through 2 Dense layers which outputs a sigmoid activated output of action probabilities
@@ -145,10 +179,12 @@ class DQNAgent:
                 break
 
             if rew > 0:
-                print("Reward:", rew)
                 qs = self.target_model.predict(np.array([list(new_state)]))
-                print(tf.sigmoid(qs))
-                print(action)
+                print(qs)
+                print("mean:", np.mean(qs))
+                print("max:", np.max(qs))
+
+            time.sleep(0.01633)
 
         env.close()
 
@@ -157,4 +193,6 @@ if __name__ == '__main__':
     env = retro.make(game='Airstriker-Genesis')
 
     agent = DQNAgent(env)
+    print(agent.get_action_meanings())
     agent.random_run()
+
