@@ -1,4 +1,5 @@
 import retro
+import gym
 from baselines.common.retro_wrappers import *
 from tensorflow import keras
 from tensorflow.keras.layers import *
@@ -41,16 +42,15 @@ class ReplayBuffer:
 
 class DQNAgent:
     # initialize the DQN agent which trains a convolution model given pixel data of the game
-    def __init__(self, environment, instance_name, buffer_size=5000, batch_size=128, replay_every=300, mean_action=True):
+    def __init__(self, environment, instance_name, buffer_size=150000, batch_size=128, replay_every=256):
         # hyper parameters
-        self.gamma = 0.95
-        self.epsilon = 1.0
+        self.gamma = 1
+        self.epsilon = 0.69
         self.epsilon_min = 0.01
-        self.epsilon_decay = 0.995
+        self.epsilon_decay = 0.985
         self.learning_rate = 0.01
 
         self.env = environment  # game environment
-        self.mean_action = mean_action  # decides whether to make single actions or multiple actions per frame
         self.model = self.create_model()  # the DQN network
         self.instance_name = instance_name
 
@@ -86,13 +86,14 @@ class DQNAgent:
             batched_state = np.array([list(state)])
             qs = self.model.predict(batched_state)[0]
 
-            if self.mean_action:
+            # heuristic for selecting actions for a multi binary action space
+            if type(self.env.action_space) == gym.spaces.MultiBinary:
                 mean = np.mean(qs)
                 best_action = np.array([int(q > mean) for q in qs])
                 return best_action
-            else:
-                best_action = np.zeros(len(qs))
-                best_action[np.argmax(qs)] = 1
+            # classical q-learning discrete action selection
+            elif type(self.env.action_space) == gym.spaces.Discrete:
+                best_action = np.argmax(qs)
                 return best_action
 
     def replay(self, experiences):
@@ -105,10 +106,16 @@ class DQNAgent:
             batched_state = np.array([list(state)])  # convert it into batch form (1, ... original shape ...)
             target_qs = self.target_model.predict(batched_state)[0]  # get the q values
 
-            # set the q values for the actions taken to the reward otherwise keep them the same
+            # set the q values for game ending actions. At worst negative or zero and at best a reward for winning
+            # no need for predicting the next state to update q values as the game is now done or reset
             if done:
-                for i in range(len(target_qs)):
-                    target_qs[i] = reward if action[i] else target_qs[i]
+                # MultiBinary q update
+                if type(self.env.action_space) == gym.spaces.MultiBinary:
+                    for i in range(len(target_qs)):
+                        target_qs[i] = reward if action[i] else target_qs[i]
+                # Discrete q update
+                elif type(self.env.action_space) == gym.spaces.Discrete:
+                    target_qs[action] = reward
 
             # update the the qs with all the q values greater than the mean of the next_state
             # this heuristic is a key to solving this DQN for this action space, and will be updated regularly
@@ -116,14 +123,18 @@ class DQNAgent:
             else:
                 next_qs = self.target_model.predict(batched_next_state)[0]
 
-                if self.mean_action:
+                # Take the MultiBinary mean action heuristic.
+                # This is a simplified heuristic from the continuous multi action space embedding paper. Much simpler us
+                if type(self.env.action_space) == gym.spaces.MultiBinary:
                     mean_qs = np.mean(target_qs)
 
                     for i in range(len(target_qs)):
-                        # instead of taking the max action on the next state take all actions that are above average for now
+                        # instead of taking the max action on the next state take all actions that are above average
                         if target_qs[i] > mean_qs:
                             target_qs[i] = reward + next_qs[i] * self.gamma
-                else:
+
+                # take the classical best action from traditional Q-learning
+                elif type(self.env.action_space) == gym.spaces.Discrete:
                     act_index = np.argmax(target_qs)
                     target_qs[act_index] = reward + next_qs[act_index] * self.gamma
 
@@ -171,7 +182,7 @@ class DQNAgent:
 
             # apply epsilon decay
             self.epsilon *= self.epsilon_decay
-            # self.epsilon = max(self.epsilon, self.epsilon_min)
+            self.epsilon = max(self.epsilon, self.epsilon_min)
 
             # record the scores
             scores.append(score)
@@ -193,36 +204,29 @@ class DQNAgent:
             if rlist:
                 # save the model
                 self.model.save(self.instance_name)
+                # save the score
+                with open('./' + self.instance_name + '/scores.npy', 'wb') as f:
+                    np.save(f, np.array(scores))
+
                 print("Saved and Quit")
                 exit(1)
 
+        # Save once training is complete
+        # save the model
+        self.model.save(self.instance_name)
+        # save the score
+        with open('./' + self.instance_name + '/scores.npy', 'wb') as f:
+            np.save(f, np.array(scores))
+
+        print("Saved and Completed Training")
 
     # copies the training models weights to the target model
     def update_target_model(self):
         self.target_model.set_weights(self.model.get_weights())  # copy the true model
 
-    # Creates a CNN with two CONV2D layers with ReLU, Pooling, and Dropout.
-    # Data is finally passed through 2 Dense layers which outputs a sigmoid activated output of action probabilities
+    # Creates a CNN with two Conv-2D layers with ReLU
+    # Model structure is taken from the Google DeepMind 2015 paper, possibly can improve with pooling and dropout
     def create_model(self):
-        # model = keras.Sequential()
-        #
-        # model.add(Conv2D(256, (3, 3), input_shape=self.env.observation_space.shape))
-        # model.add(Activation('relu'))
-        # model.add(MaxPooling2D(pool_size=(2, 2)))
-        # model.add(Dropout(0.2))
-        #
-        # model.add(Conv2D(256, (3, 3)))
-        # model.add(Activation('relu'))
-        # model.add(MaxPooling2D(pool_size=(2, 2)))
-        # model.add(Dropout(0.2))
-        #
-        # model.add(Flatten())  # this converts our 3D feature maps to 1D feature vectors
-        # model.add(Dense(64))
-        #
-        # model.add(Dense(self.env.action_space.n, activation='sigmoid'))
-        # model.compile(loss="mse", optimizer=Adam(lr=self.learning_rate), metrics=['accuracy'])
-
-        # Gym Retro customized Convolution DQN model from DeepMind (big thanks to the authors :D)
         inputs = Input(shape=self.env.observation_space.shape)
 
         # Convolutions on the frames on the screen
@@ -261,36 +265,67 @@ class DQNAgent:
             if done:
                 break
 
-            if rew > 0:
-                qs = self.target_model.predict(np.array([list(new_state)]))
-                print(qs)
-                print("mean:", np.mean(qs))
-                print("max:", np.max(qs))
-
             time.sleep(0.01633)
 
         env.close()
 
+    # loads a previously trained model for further tweaking or playing the game
+    def load_model(self, path):
+        self.model = keras.models.load_model(path)
+        self.target_model.set_weights(self.model.get_weights())  # copy the true model
+
+    # runs the game using the trained agent
+    def q_run(self):
+        state = self.env.reset()
+        while True:
+            self.env.render()
+            action = self.act(state)
+            new_state, rew, done, info = self.env.step(action)
+            if done:
+                break
+
+            time.sleep(0.005)
+
+        self.env.close()
+
 
 def wrap_environment(env, instance_name):
-    #create the directory to store the playbacks
-    os.mkdir("./" + instance_name + "-playbacks")
-    # save a video every k episodes
-    env = MovieRecord(env, "./" + instance_name + "-playbacks", k=10)
-    # Frame skip (hold an action for this many frames) and sticky actions
-    env = StochasticFrameSkip(env, 4, 0.05)
-    # scale and turn RGB image to grayscale
+    if instance_name != "":
+        # create the directory to store the playbacks
+        os.mkdir("./" + instance_name + "-playbacks")
+        # save a video every k episodes
+        env = MovieRecord(env, "./" + instance_name + "-playbacks", k=10)
+        # Frame skip (hold an action for this many frames) and sticky actions
+        env = StochasticFrameSkip(env, 4, 0.05)
+        # scale and turn RGB image to grayscale
+
     env = WarpFrame(env, width=112, height=128, grayscale=True)
 
     return env
 
+
 if __name__ == '__main__':
-    instance_name = "single-action"
+    # ----------------- CODE FOR AIRSTRIKERS -----------------------
+    instance_name = "improved-memory2"
 
     env = retro.make(game='Airstriker-Genesis')
 
     env = wrap_environment(env, instance_name)
-    agent = DQNAgent(env, instance_name, mean_action=False)
+    agent = DQNAgent(env, instance_name)
 
-    agent.train(num_episodes=1500, max_t_steps=5000)
+    agent.load_model('./saved/improved-memory')
+    agent.train(num_episodes=2000, max_t_steps=10000)
+    # agent.q_run()
 
+    # env = gym.make('Freeway-v0')
+    # env.reset()
+    # while True:
+    #     action = env.action_space.sample()
+    #     new_state, rew, done, info = env.step(1)
+    #     env.render()
+    #     if done:
+    #         break
+    #
+    #     time.sleep(0.01633)
+    #
+    # env.close()
