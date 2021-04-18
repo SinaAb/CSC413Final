@@ -7,6 +7,7 @@ from tensorflow.keras.optimizers import Adam
 from collections import namedtuple, deque
 from select import select
 import numpy as np
+import matplotlib.pyplot as plt
 import tensorflow as tf
 import random
 import time
@@ -42,13 +43,13 @@ class ReplayBuffer:
 
 class DQNAgent:
     # initialize the DQN agent which trains a convolution model given pixel data of the game
-    def __init__(self, environment, instance_name, buffer_size=150000, batch_size=128, replay_every=256):
+    def __init__(self, environment, instance_name, buffer_size=100000, batch_size=16, replay_every=64, target_update=None):
         # hyper parameters
-        self.gamma = 1
-        self.epsilon = 0.69
-        self.epsilon_min = 0.01
-        self.epsilon_decay = 0.985
-        self.learning_rate = 0.01
+        self.gamma = 0.987
+        self.epsilon = 1
+        self.epsilon_min = 0.1
+        self.epsilon_decay = 0.994
+        self.learning_rate = 0.000625
 
         self.env = environment  # game environment
         self.model = self.create_model()  # the DQN network
@@ -62,6 +63,7 @@ class DQNAgent:
         # replay memory initialization
         self.memory = ReplayBuffer(buffer_size, batch_size)
         self.replay_every = replay_every  # number of training iterations taken before the target model is updated
+        self.target_update = target_update # how often to update the target network
         self.time_step = 0  # tracks how many steps are taken
 
     def step(self, state, action, reward, next_state, done):
@@ -76,7 +78,12 @@ class DQNAgent:
         if self.time_step == 0 and len(self.memory) > self.memory.batch_size:
             experiences = self.memory.sample()
             self.replay(experiences)
-            self.update_target_model()
+
+            # if target update is None then update the network every time a replay occurs otherwise update on the param
+            if self.target_update is None:
+                self.update_target_model()
+            elif self.time_step % self.target_update == 0:
+                self.update_target_model()
 
     # make an action choice
     def act(self, state):
@@ -198,8 +205,8 @@ class DQNAgent:
             print("Score Mean:", np.mean(np.array(list(recent_scores))))
 
             # give option to save the model on this episode, waits 3 seconds for input
-            print("Enter any input to save the model and quit or wait 3 seconds...")
-            timeout = 3
+            print("Enter any input to save the model and quit or wait 1.5 seconds...")
+            timeout = 1.5
             rlist, _, _ = select([sys.stdin], [], [], timeout)
             if rlist:
                 # save the model
@@ -238,7 +245,7 @@ class DQNAgent:
         action = Dense(self.env.action_space.n)(layer5)
 
         model = keras.Model(inputs=inputs, outputs=action)
-        model.compile(loss="mse", optimizer=Adam(lr=self.learning_rate), metrics=['accuracy'])
+        model.compile(loss="mse", optimizer=Adam(lr=0.0003), metrics=['accuracy'])
 
         return model
 
@@ -284,48 +291,68 @@ class DQNAgent:
             if done:
                 break
 
-            time.sleep(0.005)
+            time.sleep(0.01633)
 
         self.env.close()
 
 
-def wrap_environment(env, instance_name):
+def wrap_environment_retro(env, instance_name):
     if instance_name != "":
         # create the directory to store the playbacks
         os.mkdir("./" + instance_name + "-playbacks")
         # save a video every k episodes
         env = MovieRecord(env, "./" + instance_name + "-playbacks", k=10)
         # Frame skip (hold an action for this many frames) and sticky actions
-        env = StochasticFrameSkip(env, 4, 0.05)
-        # scale and turn RGB image to grayscale
+        env = StochasticFrameSkip(env, 4, 1)
 
-    env = WarpFrame(env, width=112, height=128, grayscale=True)
+    # scale and turn RGB image to grayscale
+    env = WarpFrame(env, width=84, height=84, grayscale=True)
 
     return env
 
+def wrap_environment_atari(env):
+    env = WarpFrame(env, width=84, height=84, grayscale=True)
+    env = FrameStack(env, k=4)
+
+    return env
 
 if __name__ == '__main__':
-    # ----------------- CODE FOR AIRSTRIKERS -----------------------
-    instance_name = "improved-memory2"
+    # ----------------- CODE FOR TRAINING -----------------------
+    instance_name = "riverman"
 
-    env = retro.make(game='Airstriker-Genesis')
+    env = gym.make('Riverraid-v0')
+    env = wrap_environment_atari(env)
 
-    env = wrap_environment(env, instance_name)
-    agent = DQNAgent(env, instance_name)
+    agent = DQNAgent(env, instance_name, target_update=5000)
+    agent.train(num_episodes=400, max_t_steps=10000)
 
-    agent.load_model('./saved/improved-memory')
-    agent.train(num_episodes=2000, max_t_steps=10000)
+    # # ---------- for environment loading
+    # agent.load_model('./skiboy420')
+
+    # -------- plot stats
+    # scores = np.load('./saved/improved-memory/scores.npy', allow_pickle=True)
+    # steps = np.arange(1, len(scores) + 1)
+    #
+    # plt.plot(steps, scores)
+    # plt.show()
+
+    # ---------- play the trained model
     # agent.q_run()
 
-    # env = gym.make('Freeway-v0')
+    # ------------ Random Run game
+    # env = gym.make('Riverraid-v0')
+    #
     # env.reset()
+    # steps = 0
     # while True:
     #     action = env.action_space.sample()
-    #     new_state, rew, done, info = env.step(1)
+    #     new_state, rew, done, info = env.step(action)
     #     env.render()
     #     if done:
     #         break
     #
     #     time.sleep(0.01633)
+    #     steps += 1
+    # print(steps)
     #
     # env.close()

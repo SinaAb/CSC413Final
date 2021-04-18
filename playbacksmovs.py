@@ -51,7 +51,7 @@ def analyze_runs():
 
 
 def run_playback():
-    filename = './improved-memory2-playbacks/Airstriker-Genesis-Level1-000040.bk2'
+    filename = './improved-memory2-playbacks/Airstriker-Genesis-Level1-000164.bk2'
     print(filename)
 
     movie = retro.Movie(filename)  # 31 best performance so far for mean-action
