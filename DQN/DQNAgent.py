@@ -43,7 +43,7 @@ class ReplayBuffer:
 
 class DQNAgent:
     # initialize the DQN agent which trains a convolution model given pixel data of the game
-    def __init__(self, environment, instance_name, buffer_size=100000, batch_size=16, replay_every=64, target_update=None):
+    def __init__(self, environment, instance_name, buffer_size=100000, batch_size=96, replay_every=64, target_update=None):
         # hyper parameters
         self.gamma = 0.987
         self.epsilon = 1
@@ -318,19 +318,19 @@ def wrap_environment_atari(env):
 
 if __name__ == '__main__':
     # ----------------- CODE FOR TRAINING -----------------------
-    instance_name = "riverman"
+    instance_name = "riverman2"
 
     env = gym.make('Riverraid-v0')
     env = wrap_environment_atari(env)
 
-    agent = DQNAgent(env, instance_name, target_update=5000)
+    agent = DQNAgent(env, instance_name, target_update=500)
     agent.train(num_episodes=400, max_t_steps=10000)
 
     # # ---------- for environment loading
     # agent.load_model('./skiboy420')
 
     # -------- plot stats
-    # scores = np.load('./saved/improved-memory/scores.npy', allow_pickle=True)
+    # scores = np.load('./riverman/scores.npy')
     # steps = np.arange(1, len(scores) + 1)
     #
     # plt.plot(steps, scores)
