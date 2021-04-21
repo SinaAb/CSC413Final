@@ -1,0 +1,5 @@
+The code in PPO is modified versions of code examples found in the below. 
+https://github.com/Stable-Baselines-Team/stable-baselines/blob/master/docs/modules/ppo2.rst
+https://github.com/hermesdt/reinforcement-learning/blob/master/ppo/cartpole_ppo_online.ipynb
+https://colab.research.google.com/drive/1flu31ulJlgiRL1dnN2ir8wGh9p7Zij2t
+https://colab.research.google.com/github/csc413-uoft/2021/blob/master/assets/assignments/a4-dqn.ipynb

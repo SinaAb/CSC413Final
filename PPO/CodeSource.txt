@@ -1,3 +1,0 @@
-
-https://github.com/Stable-Baselines-Team/stable-baselines/blob/master/docs/modules/ppo2.rst
-https://github.com/hermesdt/reinforcement-learning/blob/master/ppo/cartpole_ppo_online.ipynb
