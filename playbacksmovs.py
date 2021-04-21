@@ -2,6 +2,7 @@ import retro
 import os
 import numpy as np
 import time
+import matplotlib.pyplot as plt
 
 
 def get_file_code(playback):
@@ -13,8 +14,8 @@ def analyze_runs():
     scores = []
     timesteps = []
 
-    for playback in range(len(os.listdir('./improved-memory2-playbacks/'))):
-        filename = './improved-memory2-playbacks/Airstriker-Genesis-Level1-{}.bk2'.format(get_file_code(playback))
+    for playback in range(len(os.listdir('./saved/mean-action2-playbacks/'))):
+        filename = './saved/mean-action2-playbacks/Airstriker-Genesis-Level1-{}.bk2'.format(get_file_code(playback))
         print(filename)
 
         movie = retro.Movie(filename)  # 31 best performance so far for mean-action
@@ -44,14 +45,32 @@ def analyze_runs():
     scores = np.array(scores)
     timesteps = np.array(timesteps)
 
+    episodes = np.arange(1, len(scores)+1)
+    episodes *= 10
+
+    plt.plot(episodes, scores)
+    plt.xlabel('Episodes')
+    plt.ylabel('Totals Rewards')
+    plt.title('Airstriker-Genisis (Mean Heuristic More Episodes)')
+    plt.show()
+
+    plt.plot(episodes, timesteps)
+    plt.xlabel('Episodes')
+    plt.ylabel('Survival Time')
+    plt.title('Airstriker-Genisis (Mean Heuristic More Episodes)')
+    plt.show()
+
+
     print("Average Score:", np.mean(scores))
     print("Average Timesteps:", np.mean(timesteps))
     print("Max Score:", np.max(scores), "On Playback:", np.argmax(scores))
     print("Max Timesteps:", np.max(timesteps), "On Playback:", np.argmax(timesteps))
 
 
+
+
 def run_playback():
-    filename = './improved-memory2-playbacks/Airstriker-Genesis-Level1-000164.bk2'
+    filename = './saved/mean-action2-playbacks/Airstriker-Genesis-Level1-000070.bk2'
     print(filename)
 
     movie = retro.Movie(filename)  # 31 best performance so far for mean-action

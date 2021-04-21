@@ -43,7 +43,7 @@ class ReplayBuffer:
 
 class DQNAgent:
     # initialize the DQN agent which trains a convolution model given pixel data of the game
-    def __init__(self, environment, instance_name, buffer_size=100000, batch_size=96, replay_every=64, target_update=None):
+    def __init__(self, environment, instance_name, buffer_size=100000, batch_size=32, replay_every=128, target_update=None):
         # hyper parameters
         self.gamma = 0.987
         self.epsilon = 1
@@ -245,7 +245,7 @@ class DQNAgent:
         action = Dense(self.env.action_space.n)(layer5)
 
         model = keras.Model(inputs=inputs, outputs=action)
-        model.compile(loss="mse", optimizer=Adam(lr=0.0003), metrics=['accuracy'])
+        model.compile(loss="mse", optimizer=Adam(lr=self.learning_rate), metrics=['accuracy'])
 
         return model
 
@@ -284,6 +284,7 @@ class DQNAgent:
     # runs the game using the trained agent
     def q_run(self):
         state = self.env.reset()
+        score = 0
         while True:
             self.env.render()
             action = self.act(state)
@@ -291,7 +292,10 @@ class DQNAgent:
             if done:
                 break
 
-            time.sleep(0.01633)
+            score += rew
+            time.sleep(0.01)
+
+        print(self.instance_name, "scored:", score)
 
         self.env.close()
 
@@ -318,32 +322,38 @@ def wrap_environment_atari(env):
 
 if __name__ == '__main__':
     # ----------------- CODE FOR TRAINING -----------------------
-    instance_name = "riverman2"
+    instance_name = "riverman"
 
     env = gym.make('Riverraid-v0')
     env = wrap_environment_atari(env)
 
     agent = DQNAgent(env, instance_name, target_update=500)
-    agent.train(num_episodes=400, max_t_steps=10000)
-
-    # # ---------- for environment loading
-    # agent.load_model('./skiboy420')
+    # # agent.train(num_episodes=400, max_t_steps=10000)
+    #
+    # # # ---------- for environment loading
+    agent.load_model('./saved/riverman')
 
     # -------- plot stats
-    # scores = np.load('./riverman/scores.npy')
+    # scores = np.load('./lilskiboy/scores.npy')
     # steps = np.arange(1, len(scores) + 1)
     #
     # plt.plot(steps, scores)
+    # plt.xlabel('Episodes')
+    # plt.ylabel('Totals Rewards')
+    # plt.title('Skiing-v0')
     # plt.show()
 
     # ---------- play the trained model
-    # agent.q_run()
+    agent.q_run()
 
     # ------------ Random Run game
-    # env = gym.make('Riverraid-v0')
+    # env = gym.make('Skiing-v0')
+    #
+    # print(env.action_space)
     #
     # env.reset()
-    # steps = 0
+    # scores = 0
+    #
     # while True:
     #     action = env.action_space.sample()
     #     new_state, rew, done, info = env.step(action)
@@ -352,7 +362,7 @@ if __name__ == '__main__':
     #         break
     #
     #     time.sleep(0.01633)
-    #     steps += 1
-    # print(steps)
+    #     scores += rew
+    # print(scores)
     #
     # env.close()
