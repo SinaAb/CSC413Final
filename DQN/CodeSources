@@ -1,0 +1,8 @@
+The code in DQN is modified versions of code examples found in the below. 
+https://github.com/openai/retro
+https://github.com/openai/gym 
+https://github.com/openai/baselines (wrappers)
+https://keras.io/examples/rl/deep_q_network_breakout/ 
+https://towardsdatascience.com/reinforcement-learning-w-keras-openai-dqns-1eed3a5338c 
+https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html 
+
